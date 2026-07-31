@@ -141,6 +141,15 @@
         .balao-erro::after {
             border-color: #ffebee transparent transparent transparent;
         }
+
+        .papel {
+            position: absolute;
+            font-size: clamp(2em, 8vw, 3em);
+            z-index: 5;
+            cursor: pointer;
+            pointer-events: auto;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5));
+        }
     </style>
 </head>
 <body>
@@ -171,10 +180,13 @@
         let initialSpeed = 700; // Pouco mais lento no início para mobile
         let currentSpeed = initialSpeed;
         let resizeTimeout; // FIX: para debounce do resize
-        
-        // Ajusta a quantidade de troncos dependendo do tamanho da tela
-        const getQuantidadeTroncos = () => window.innerWidth < 600 ? 4 : 6; 
-        
+
+        const QUANTIDADE_TRONCOS = 5; // Fixo em 5 troncos
+
+        let papelTimeout;      // agenda o momento em que o papel vai cair
+        let papelFallInterval; // controla a queda do papel
+        const PONTOS_PARA_PASSAR = 15; // pontuação mínima para passar de fase
+
         let vozes = [];
 
         if ('speechSynthesis' in window) {
@@ -199,9 +211,7 @@
             const troncoHeight = dummyTronco.clientHeight || 70;
             dummyTronco.remove();
 
-            const qtd = getQuantidadeTroncos();
-
-            for (let i = 0; i < qtd; i++) {
+            for (let i = 0; i < QUANTIDADE_TRONCOS; i++) {
                 const tronco = document.createElement('img');
                 tronco.src = 'tronquinho.png';
                 tronco.className = 'tronco';
@@ -246,6 +256,7 @@
             miranha.style.display = 'block';
 
             espalharTroncos();
+            agendarQuedaDoPapel();
 
             clearInterval(gameInterval);
             clearInterval(moveInterval);
@@ -260,6 +271,60 @@
 
             moveMiranha();
             moveInterval = setInterval(moveMiranha, currentSpeed);
+        }
+
+        function agendarQuedaDoPapel() {
+            clearTimeout(papelTimeout);
+            clearInterval(papelFallInterval);
+            document.querySelectorAll('.papel').forEach(p => p.remove());
+
+            // O papel cai em um momento aleatório dentro dos primeiros 25s do jogo
+            const delay = 3000 + Math.random() * 22000;
+            papelTimeout = setTimeout(() => {
+                if (timeLeft > 0) {
+                    criarPapel();
+                }
+            }, delay);
+        }
+
+        function criarPapel() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+
+            const papel = document.createElement('div');
+            papel.textContent = '📄';
+            papel.className = 'papel';
+
+            const papelSize = 50; // aproximação do tamanho renderizado
+            const maxX = Math.max(0, containerWidth - papelSize);
+            const startX = Math.floor(Math.random() * maxX);
+
+            let posY = -papelSize;
+            papel.style.left = `${startX}px`;
+            papel.style.top = `${posY}px`;
+
+            gameContainer.appendChild(papel);
+
+            const velocidadeQueda = 2.5; // pixels por passo
+
+            papel.addEventListener('pointerdown', (e) => {
+                if (timeLeft > 0) {
+                    score += 10;
+                    scoreDisplay.textContent = score;
+                    mostrarTexto("+10 Pontos!", e.clientX, e.clientY);
+                    clearInterval(papelFallInterval);
+                    papel.remove();
+                }
+            });
+
+            papelFallInterval = setInterval(() => {
+                posY += velocidadeQueda;
+                papel.style.top = `${posY}px`;
+                if (posY > containerHeight) {
+                    clearInterval(papelFallInterval);
+                    papel.remove();
+                }
+            }, 20);
         }
 
         function moveMiranha() {
@@ -340,15 +405,23 @@
         function endGame() {
             clearInterval(gameInterval);
             clearInterval(moveInterval);
+            clearTimeout(papelTimeout);
+            clearInterval(papelFallInterval);
+            document.querySelectorAll('.papel').forEach(p => p.remove());
+
             miranha.style.display = 'none';
             document.querySelectorAll('.tronco').forEach(t => t.style.display = 'none');
             startButton.style.display = 'block';
             startButton.textContent = 'Jogar Novamente';
+
             // Pequeno delay para evitar que o clique duplo no final feche o alert rápido demais
             setTimeout(() => {
-                alert(`Fim de jogo! O Miranha foi pego ${score} vezes.`);
+                if (score >= PONTOS_PARA_PASSAR) {
+                    alert(`Parabéns! Você fez ${score} pontos e passou de fase!`);
+                } else {
+                    alert(`Falta agilidade! Você fez apenas ${score} pontos.`);
+                }
             }, 100);
-            
         }
 
         startButton.addEventListener('click', startGame);
