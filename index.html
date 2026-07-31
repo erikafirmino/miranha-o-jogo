@@ -156,6 +156,7 @@
 
     <div id="ui-container">
         <div id="stats">
+            <div>Fase: <span id="fase-display">1</span></div>
             <div>Tempo: <span id="time-display">30</span>s</div>
             <div>Pontos: <span id="score-display">0</span></div>
         </div>
@@ -171,21 +172,36 @@
         const miranha = document.getElementById('miranha');
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
+        const faseDisplay = document.getElementById('fase-display');
         const startButton = document.getElementById('start-button');
 
         let score = 0;
         let timeLeft = 30;
         let gameInterval;
         let moveInterval;
-        let initialSpeed = 700; // Pouco mais lento no início para mobile
-        let currentSpeed = initialSpeed;
+        let currentSpeed;
         let resizeTimeout; // FIX: para debounce do resize
 
-        const QUANTIDADE_TRONCOS = 5; // Fixo em 5 troncos
+        let faseAtual = 1;
+        let troncosAtual = 5;
 
-        let papelTimeout;      // agenda o momento em que o papel vai cair
-        let papelFallInterval; // controla a queda do papel
-        const PONTOS_PARA_PASSAR = 15; // pontuação mínima para passar de fase
+        // Configuração de cada fase: dificuldade aumenta progressivamente
+        const FASES = [
+            { troncos: 5, velocidadeInicial: 700, pontosParaPassar: 15, papeis: 1, duracao: 30 },
+            { troncos: 6, velocidadeInicial: 600, pontosParaPassar: 25, papeis: 2, duracao: 30 },
+            { troncos: 7, velocidadeInicial: 500, pontosParaPassar: 35, papeis: 2, duracao: 28 },
+            { troncos: 8, velocidadeInicial: 420, pontosParaPassar: 45, papeis: 3, duracao: 25 },
+            { troncos: 9, velocidadeInicial: 350, pontosParaPassar: 55, papeis: 3, duracao: 22 }
+        ];
+
+        function getFaseConfig() {
+            // Depois da última fase definida, repete a última com dificuldade máxima
+            const indice = Math.min(faseAtual - 1, FASES.length - 1);
+            return FASES[indice];
+        }
+
+        let papeisTimeouts = [];   // agenda os momentos em que os papéis vão cair
+        let papeisIntervals = [];  // controla a queda de cada papel ativo
 
         let vozes = [];
 
@@ -211,7 +227,7 @@
             const troncoHeight = dummyTronco.clientHeight || 70;
             dummyTronco.remove();
 
-            for (let i = 0; i < QUANTIDADE_TRONCOS; i++) {
+            for (let i = 0; i < troncosAtual; i++) {
                 const tronco = document.createElement('img');
                 tronco.src = 'tronquinho.png';
                 tronco.className = 'tronco';
@@ -247,11 +263,15 @@
                 window.speechSynthesis.speak(somMudo);
             }
 
+            const fase = getFaseConfig();
+            troncosAtual = fase.troncos;
+            currentSpeed = fase.velocidadeInicial;
+
             score = 0;
-            timeLeft = 30;
-            currentSpeed = initialSpeed;
+            timeLeft = fase.duracao;
             scoreDisplay.textContent = score;
             timeDisplay.textContent = timeLeft;
+            faseDisplay.textContent = faseAtual;
             startButton.style.display = 'none';
             miranha.style.display = 'block';
 
@@ -274,19 +294,32 @@
         }
 
         function agendarQuedaDoPapel() {
-            clearTimeout(papelTimeout);
-            clearInterval(papelFallInterval);
-            document.querySelectorAll('.papel').forEach(p => p.remove());
+            limparPapeis();
 
-            // O papel cai em um momento aleatório dentro dos primeiros 25s do jogo
-            const delay = 3000 + Math.random() * 22000;
-            papelTimeout = setTimeout(() => {
-                if (timeLeft > 0) {
-                    criarPapel();
-                }
-            }, delay);
+            const fase = getFaseConfig();
+            const duracaoMs = fase.duracao * 1000;
+
+            for (let i = 0; i < fase.papeis; i++) {
+                // Cada request cai em um momento aleatório, evitando os últimos 3s do tempo
+                const delay = Math.random() * Math.max(1000, duracaoMs - 3000);
+                const t = setTimeout(() => {
+                    if (timeLeft > 0) {
+                        criarPapel();
+                    }
+                }, delay);
+                papeisTimeouts.push(t);
+            }
         }
 
+        function limparPapeis() {
+            papeisTimeouts.forEach(t => clearTimeout(t));
+            papeisIntervals.forEach(i => clearInterval(i));
+            papeisTimeouts = [];
+            papeisIntervals = [];
+            document.querySelectorAll('.papel').forEach(p => p.remove());
+        }
+
+        // O papel (📄) representa um "request" que cai na tela e vale +10 pontos
         function criarPapel() {
             const containerWidth = gameContainer.clientWidth;
             const containerHeight = gameContainer.clientHeight;
@@ -307,24 +340,28 @@
 
             const velocidadeQueda = 2.5; // pixels por passo
 
+            let fallInterval;
+
             papel.addEventListener('pointerdown', (e) => {
                 if (timeLeft > 0) {
                     score += 10;
                     scoreDisplay.textContent = score;
-                    mostrarTexto("+10 Pontos!", e.clientX, e.clientY);
-                    clearInterval(papelFallInterval);
+                    mostrarTexto("Request atendido! +10", e.clientX, e.clientY);
+                    clearInterval(fallInterval);
                     papel.remove();
                 }
             });
 
-            papelFallInterval = setInterval(() => {
+            fallInterval = setInterval(() => {
                 posY += velocidadeQueda;
                 papel.style.top = `${posY}px`;
                 if (posY > containerHeight) {
-                    clearInterval(papelFallInterval);
+                    clearInterval(fallInterval);
                     papel.remove();
                 }
             }, 20);
+
+            papeisIntervals.push(fallInterval);
         }
 
         function moveMiranha() {
@@ -405,22 +442,30 @@
         function endGame() {
             clearInterval(gameInterval);
             clearInterval(moveInterval);
-            clearTimeout(papelTimeout);
-            clearInterval(papelFallInterval);
-            document.querySelectorAll('.papel').forEach(p => p.remove());
+            limparPapeis();
 
             miranha.style.display = 'none';
             document.querySelectorAll('.tronco').forEach(t => t.style.display = 'none');
             startButton.style.display = 'block';
-            startButton.textContent = 'Jogar Novamente';
+
+            const fase = getFaseConfig();
+            const passou = score >= fase.pontosParaPassar;
 
             // Pequeno delay para evitar que o clique duplo no final feche o alert rápido demais
             setTimeout(() => {
-                if (score >= PONTOS_PARA_PASSAR) {
-                    alert(`Parabéns! Você fez ${score} pontos e passou de fase!`);
+                if (passou) {
+                    if (faseAtual < FASES.length) {
+                        faseAtual++;
+                        alert(`Parabéns! Você fez ${score} pontos e passou de fase!\nPrepare-se para a Fase ${faseAtual}!`);
+                    } else {
+                        alert(`Incrível! Você fez ${score} pontos e completou todas as fases!\nVocê é o campeão da agilidade! 🏆`);
+                        faseAtual = 1; // reinicia o ciclo de fases após vencer tudo
+                    }
                 } else {
-                    alert(`Falta agilidade! Você fez apenas ${score} pontos.`);
+                    alert(`Falta agilidade! Você fez apenas ${score} pontos e precisava de ${fase.pontosParaPassar} para passar da Fase ${faseAtual}.`);
                 }
+                faseDisplay.textContent = faseAtual;
+                startButton.textContent = `Iniciar Fase ${faseAtual}`;
             }, 100);
         }
 
