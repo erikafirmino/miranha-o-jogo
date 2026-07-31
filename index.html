@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miranha - O Jogo do Clique</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #222;
+            color: white;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            user-select: none; /* Impede a seleção de texto ao clicar rápido */
+        }
+
+        #game-container {
+            width: 80vw;
+            height: 80vh;
+            border: 4px solid #555;
+            background-color: #111;
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+
+        #miranha {
+            width: 100px; /* Tamanho do personagem */
+            height: auto;
+            position: absolute;
+            cursor: crosshair; /* Cursor de "visar" */
+            transition: all 0.2s ease-out; /* Movimento suave */
+            pointer-events: auto;
+        }
+
+        #ui-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        #score-display, #time-display {
+            font-weight: bold;
+        }
+
+        #start-button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            background-color: #f00; /* Vermelho aranha */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #start-button:hover {
+            background-color: #a00;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div>Tempo: <span id="time-display">30</span>s</div>
+        <div>Pontos: <span id="score-display">0</span></div>
+        <button id="start-button">Iniciar Jogo</button>
+    </div>
+
+    <div id="game-container">
+        <!-- O personagem será inserido aqui pelo JS -->
+        <img src="miranha.png" id="miranha" alt="Miranha" style="display:none;">
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const miranha = document.getElementById('miranha');
+        const scoreDisplay = document.getElementById('score-display');
+        const timeDisplay = document.getElementById('time-display');
+        const startButton = document.getElementById('start-button');
+
+        let score = 0;
+        let timeLeft = 30;
+        let gameInterval;
+        let moveInterval;
+        let initialSpeed = 1000; // Tempo inicial de movimento em milissegundos
+        let currentSpeed = initialSpeed;
+
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            currentSpeed = initialSpeed;
+            scoreDisplay.textContent = score;
+            timeDisplay.textContent = timeLeft;
+            startButton.style.display = 'none';
+            miranha.style.display = 'block';
+
+            // Limpa intervalos anteriores, se houver
+            clearInterval(gameInterval);
+            clearInterval(moveInterval);
+
+            // Temporizador do jogo
+            gameInterval = setInterval(() => {
+                timeLeft--;
+                timeDisplay.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            // Movimento aleatório inicial
+            moveMiranha();
+            moveInterval = setInterval(moveMiranha, currentSpeed);
+        }
+
+        function moveMiranha() {
+            // Calcula limites baseados no tamanho do container e do personagem
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            const miranhaWidth = miranha.clientWidth;
+            const miranhaHeight = miranha.clientHeight;
+
+            // Gera posições aleatórias válidas
+            const randomX = Math.floor(Math.random() * (containerWidth - miranhaWidth));
+            const randomY = Math.floor(Math.random() * (containerHeight - miranhaHeight));
+
+            // Aplica as novas posições
+            miranha.style.left = `${randomX}px`;
+            miranha.style.top = `${randomY}px`;
+        }
+
+        miranha.addEventListener('click', () => {
+            if (timeLeft > 0) {
+                score++;
+                scoreDisplay.textContent = score;
+
+                // Feedback visual de clique (piscar)
+                miranha.style.opacity = '0.5';
+                setTimeout(() => miranha.style.opacity = '1', 100);
+
+                // Aumenta a velocidade do movimento com o tempo
+                currentSpeed = Math.max(200, currentSpeed - 50); // Mínimo de 200ms
+                clearInterval(moveInterval);
+                moveInterval = setInterval(moveMiranha, currentSpeed);
+
+                // Move instantaneamente para uma nova posição ao ser clicado
+                moveMiranha();
+            }
+        });
+
+        function endGame() {
+            clearInterval(gameInterval);
+            clearInterval(moveInterval);
+            miranha.style.display = 'none';
+            startButton.style.display = 'block';
+            startButton.textContent = 'Jogar Novamente';
+            alert(`Fim de jogo! Sua pontuação: ${score}`);
+        }
+
+        startButton.addEventListener('click', startGame);
+
+    </script>
+</body>
+</html>
