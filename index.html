@@ -170,6 +170,7 @@
         let moveInterval;
         let initialSpeed = 700; // Pouco mais lento no início para mobile
         let currentSpeed = initialSpeed;
+        let resizeTimeout; // FIX: para debounce do resize
         
         // Ajusta a quantidade de troncos dependendo do tamanho da tela
         const getQuantidadeTroncos = () => window.innerWidth < 600 ? 4 : 6; 
@@ -190,6 +191,7 @@
             
             // Pega o tamanho real que o tronco vai ter na tela
             const dummyTronco = document.createElement('img');
+            dummyTronco.src = 'tronquinho.png'; // FIX: sem src, clientHeight ficava 0 (height:auto não tinha como calcular)
             dummyTronco.className = 'tronco';
             dummyTronco.style.visibility = 'hidden';
             gameContainer.appendChild(dummyTronco);
@@ -351,12 +353,15 @@
 
         startButton.addEventListener('click', startGame);
 
-        // Recalcula limites se girar a tela
+        // Recalcula limites se girar a tela (FIX: agora com debounce para não disparar em excesso durante o resize)
         window.addEventListener('resize', () => {
-             if(startButton.style.display === 'none') {
-                 espalharTroncos(); // Re-espalha troncos pra adaptar ao novo tamanho
-                 moveMiranha();
-             }
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (startButton.style.display === 'none') {
+                    espalharTroncos(); // Re-espalha troncos pra adaptar ao novo tamanho
+                    moveMiranha();
+                }
+            }, 150);
         });
 
     </script>
