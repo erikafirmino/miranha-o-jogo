@@ -15,7 +15,7 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
-            user-select: none; /* Impede a seleção de texto ao clicar rápido */
+            user-select: none;
         }
 
         #game-container {
@@ -29,12 +29,13 @@
         }
 
         #miranha {
-            width: 100px; /* Tamanho do personagem */
+            width: 90px; /* Diminuí um pouco para ficar mais difícil */
             height: auto;
             position: absolute;
-            cursor: crosshair; /* Cursor de "visar" */
-            transition: all 0.2s ease-out; /* Movimento suave */
+            cursor: crosshair;
+            transition: all 0.15s ease-out; /* Movimento mais brusco e rápido */
             pointer-events: auto;
+            z-index: 2;
         }
 
         #ui-container {
@@ -51,7 +52,7 @@
         #start-button {
             padding: 10px 20px;
             font-size: 1.2em;
-            background-color: #f00; /* Vermelho aranha */
+            background-color: #e23636;
             color: white;
             border: none;
             border-radius: 5px;
@@ -60,7 +61,39 @@
         }
 
         #start-button:hover {
-            background-color: #a00;
+            background-color: #b32424;
+        }
+
+        /* Estilo do balão de fala */
+        .balao-fala {
+            position: absolute;
+            background: white;
+            color: black;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.9em;
+            pointer-events: none;
+            z-index: 10;
+            animation: subir 0.6s ease-out forwards;
+            box-shadow: 2px 2px 0px #000;
+        }
+
+        /* Triângulo do balão de fala */
+        .balao-fala::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 5px 5px 0;
+            border-style: solid;
+            border-color: white transparent transparent transparent;
+        }
+
+        @keyframes subir {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
         }
     </style>
 </head>
@@ -73,7 +106,6 @@
     </div>
 
     <div id="game-container">
-        <!-- O personagem será inserido aqui pelo JS -->
         <img src="miranha.png" id="miranha" alt="Miranha" style="display:none;">
     </div>
 
@@ -88,7 +120,9 @@
         let timeLeft = 30;
         let gameInterval;
         let moveInterval;
-        let initialSpeed = 1000; // Tempo inicial de movimento em milissegundos
+        
+        // Deixei o jogo base mais rápido! Começa em 600ms (antes era 1000ms)
+        let initialSpeed = 600; 
         let currentSpeed = initialSpeed;
 
         function startGame() {
@@ -100,11 +134,9 @@
             startButton.style.display = 'none';
             miranha.style.display = 'block';
 
-            // Limpa intervalos anteriores, se houver
             clearInterval(gameInterval);
             clearInterval(moveInterval);
 
-            // Temporizador do jogo
             gameInterval = setInterval(() => {
                 timeLeft--;
                 timeDisplay.textContent = timeLeft;
@@ -113,25 +145,44 @@
                 }
             }, 1000);
 
-            // Movimento aleatório inicial
             moveMiranha();
             moveInterval = setInterval(moveMiranha, currentSpeed);
         }
 
         function moveMiranha() {
-            // Calcula limites baseados no tamanho do container e do personagem
             const containerWidth = gameContainer.clientWidth;
             const containerHeight = gameContainer.clientHeight;
-            const miranhaWidth = miranha.clientWidth;
-            const miranhaHeight = miranha.clientHeight;
+            const miranhaWidth = miranha.clientWidth || 90;
+            const miranhaHeight = miranha.clientHeight || 90;
 
-            // Gera posições aleatórias válidas
             const randomX = Math.floor(Math.random() * (containerWidth - miranhaWidth));
             const randomY = Math.floor(Math.random() * (containerHeight - miranhaHeight));
 
-            // Aplica as novas posições
             miranha.style.left = `${randomX}px`;
             miranha.style.top = `${randomY}px`;
+        }
+
+        function falarAgilidade() {
+            // Cria o balão de fala visual
+            const balao = document.createElement('div');
+            balao.textContent = "Agilidade!";
+            balao.className = 'balao-fala';
+            balao.style.left = `${miranha.offsetLeft + 10}px`;
+            balao.style.top = `${miranha.offsetTop - 20}px`;
+            gameContainer.appendChild(balao);
+
+            // Remove o balão depois da animação
+            setTimeout(() => balao.remove(), 600);
+
+            // Usa a voz do navegador para falar (se suportado)
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancela falas anteriores para não encavalar
+                const fala = new SpeechSynthesisUtterance('Agilidade!');
+                fala.lang = 'pt-BR';
+                fala.rate = 1.6; // Fala rapidinho
+                fala.pitch = 1.2; // Voz um pouco mais aguda/animada
+                window.speechSynthesis.speak(fala);
+            }
         }
 
         miranha.addEventListener('click', () => {
@@ -139,16 +190,17 @@
                 score++;
                 scoreDisplay.textContent = score;
 
-                // Feedback visual de clique (piscar)
+                // Chama a função da fala e do balão
+                falarAgilidade();
+
                 miranha.style.opacity = '0.5';
                 setTimeout(() => miranha.style.opacity = '1', 100);
 
-                // Aumenta a velocidade do movimento com o tempo
-                currentSpeed = Math.max(200, currentSpeed - 50); // Mínimo de 200ms
+                // Fica BEM mais rápido a cada clique (cai de 40 em 40ms, mínimo de 150ms)
+                currentSpeed = Math.max(150, currentSpeed - 40); 
                 clearInterval(moveInterval);
                 moveInterval = setInterval(moveMiranha, currentSpeed);
 
-                // Move instantaneamente para uma nova posição ao ser clicado
                 moveMiranha();
             }
         });
@@ -159,7 +211,7 @@
             miranha.style.display = 'none';
             startButton.style.display = 'block';
             startButton.textContent = 'Jogar Novamente';
-            alert(`Fim de jogo! Sua pontuação: ${score}`);
+            alert(`Fim de jogo! O Miranha foi pego ${score} vezes.`);
         }
 
         startButton.addEventListener('click', startGame);
